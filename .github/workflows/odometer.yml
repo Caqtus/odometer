@@ -6,7 +6,7 @@
 #  K4  keep-max merge, no-noop commits, badge migration, self-heal block: unchanged
 #
 # The caller (consumer repo) provides:
-#  - secrets.TRAFFIC_TOKEN  (classic PAT, `repo` scope) via `secrets: inherit`
+#  - secrets.TRAFFIC_TOKEN  (fine-grained PAT, Administration: Read only) via `secrets: inherit`
 #  - with: npm_package: '' | 'your-pkg'
 # The workflow's own GITHUB_TOKEN (contents: write) does all writes.
 
@@ -67,8 +67,8 @@ jobs:
           fetch "https://api.github.com/repos/$REPO" stats/_repo.json
           fetch "https://api.github.com/repos/$REPO/releases?per_page=100" stats/_rels.json
           if [ -n "${GH_TOKEN:-}" ]; then
-            gh api "repos/$REPO/traffic/views?per=day" > stats/_v.json
-            gh api "repos/$REPO/traffic/clones?per=day" > stats/_c.json
+            gh api "repos/$REPO/traffic/views?per=day" > stats/_v.json 2>/dev/null || { echo '{"views":[]}' > stats/_v.json; echo '::warning::traffic endpoint (views) not readable with TRAFFIC_TOKEN - traffic stays empty, run continues'; }
+            gh api "repos/$REPO/traffic/clones?per=day" > stats/_c.json 2>/dev/null || { echo '{"clones":[]}' > stats/_c.json; echo '::warning::traffic endpoint (clones) not readable with TRAFFIC_TOKEN - traffic stays empty, run continues'; }
           else
             echo "::warning::TRAFFIC_TOKEN secret not set — stars/forks/releases + npm still work, traffic stays empty"
             echo '{"views":[]}' > stats/_v.json

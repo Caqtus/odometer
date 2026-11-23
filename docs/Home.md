@@ -1,20 +1,16 @@
 # Odometer
 
-**Odometer** adds one clean stats line to your repo's README and keeps it current,
-by itself:
+**Odometer** adds one clean stats line to a repo's README and keeps it current, by itself:
 
 > **Total clones:** 4,352 (github: 210 · npm: 4,142) · **Repo views:** 1,289 · **Stars:** 42 · **Forks:** 7 · **Release downloads:** 356
 
-It is a reusable GitHub Action (`Caqtus/odometer`):
+A reusable workflow (Caqtus/odometer) that runs on your schedule, in your repo:
 
-- runs on **your** schedule (default daily), on **your** repo
 - collects repo views, clones, stars, forks, release downloads, npm downloads
-- appends to `stats/daily.csv` in **your** repo (full history, yours forever)
-- rewrites **one managed block** between `repo-stats:begin` / `repo-stats:end` markers — nothing else in your README is ever touched
-- numbers **never go down**: GitHub's traffic API reports cumulative totals, and Odometer keeps the maximum per day
+- appends to `stats/daily.csv` — full history, plain text, yours forever
+- rewrites **one managed block** between `repo-stats:begin` / `repo-stats:end` markers — nothing else in the README is ever touched
+- numbers **never go down**: the traffic API reports cumulative totals, and Odometer keeps the maximum per day
 
-Because the workflow does all writing with its own throwaway GitHub token, the token
-**you** add is only ever used to *read* the traffic API.
+All writing is done with GitHub's own per-run token. The token you add is read-only.
 
-**Quick start → [Setup](Setup)** · **Details → [What you get](What-you-get)** ·
-**Questions → [FAQ](FAQ)**
+**Quick start → [Setup](Setup)** · **Details → [What you get](What-you-get)** · **Questions → [FAQ](FAQ)**
