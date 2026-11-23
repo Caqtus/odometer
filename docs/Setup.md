@@ -43,12 +43,15 @@ on:
   workflow_dispatch: {}    # gives you a "Run workflow" button
 jobs:
   refresh:
+    permissions:
+      contents: write       # lets the run token commit the stats back — do not remove
     uses: Caqtus/odometer/.github/workflows/odometer.yml@v1
     with:
       npm_package: ""      # your npm package name here (e.g. armazi-hud), or "" if there is none
     secrets: inherit
 ```
 
+- **`permissions: contents: write`** — the run token needs it to commit the stats back; without it, a read-only repo default rejects the run. Keep it.
 - **`npm_package`** — the exact npm package name if this repo publishes to npm (e.g. `armazi-hud`); leave `""` otherwise. A wrong or missing value never breaks a run — the npm parts are hidden automatically.
 - **`secrets: inherit`** — forwards `TRAFFIC_TOKEN` into the engine.
 
