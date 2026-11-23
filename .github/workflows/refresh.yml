@@ -6,7 +6,8 @@ name: odometer
 
 on:
   schedule:
-    - cron: "0 20 * * *"   # ~02:00 Tbilisi
+    # runs daily at 20:00 UTC = 00:00 (midnight) Georgian time (UTC+4)
+    - cron: "0 20 * * *"
   workflow_dispatch: {}
 
 jobs:

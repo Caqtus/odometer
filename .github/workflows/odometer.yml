@@ -19,12 +19,14 @@ on:
         description: 'npm package name; leave empty if the repo has no npm package'
         required: false
         default: ''
+        type: string
   workflow_dispatch:
     inputs:
       npm_package:
         description: 'npm package name; leave empty if the repo has no npm package'
         required: false
         default: ''
+        type: string
 
 concurrency:
   group: odometer
@@ -77,8 +79,9 @@ jobs:
             RANGE="$(date -u -d '-90 days' +%Y-%m-%d):$(date -u +%Y-%m-%d)"
             code=$(curl -sS -w '%{http_code}' -H "Accept: application/json" "https://api.npmjs.org/downloads/range/$RANGE/$NPM_PKG" -o stats/_n.json || echo 000)
             if [ "$code" = "404" ]; then
-              echo "::warning::npm package '$NPM_PKG' not found — npm data stays empty (npm parts remain visible with zeros)"
+              echo off > stats/_mode.txt
               echo '{"downloads":[]}' > stats/_n.json
+              echo "::warning::npm package '$NPM_PKG' not found — npm parts are hidden. Don't have an npm package? Remove the npm_package line (or set it to \"\")"
             elif [ "$code" != "200" ]; then
               echo "::warning::npm API returned HTTP $code — skipping npm data this run"
               echo '{"downloads":[]}' > stats/_n.json

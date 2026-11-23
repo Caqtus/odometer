@@ -9,7 +9,7 @@ Three steps. ~5 minutes. (This is the same way you set up the repo that hosts Od
 3. **Personal access tokens** → **Tokens (classic)** → **Generate new token (classic)**
 4. Fill in the form:
    - **Note** — anything, e.g. `odometer-read`
-   - **Expiration** — 90 days is a good default (you'll be pinged… by nothing; just regenerate if it ever expires and the workflow starts warning)
+    - **Expiration** — choose **No expiration**. A permanent token works fine: it is used read-only, and you can revoke it anytime from this same page
    - **Select scopes** — check **`repo`** and nothing else
 5. Click **Generate token**.
    - **2FA?** If you have two-factor authentication on, GitHub will ask for your
@@ -36,24 +36,35 @@ vanishes when the run ends.
 
 Create the file `.github/workflows/odometer.yml` in your repo:
 
+1. Repo page → above the file list, click **`+`** → **Create new file**
+   (if you see *Add file* instead, click it, then *Create new file*)
+2. Name box: `.github/workflows/odometer.yml` — GitHub creates the folders for you
+3. Paste this into the editor:
+
 ```yaml
 name: odometer
 on:
   schedule:
-    - cron: "0 20 * * *"   # daily; pick an hour in your own time zone
-  workflow_dispatch: {}    # lets you click "Run workflow" anytime
+    # daily at 20:00 UTC = 00:00 (midnight) Georgian time (UTC+4); change "20"
+    # to another UTC hour if you want a different time
+    - cron: "0 20 * * *"
+  workflow_dispatch: {}    # gives you a "Run workflow" button anytime
 jobs:
   refresh:
     uses: Caqtus/odometer/.github/workflows/odometer.yml@v1
     with:
-      npm_package: your-package-name   # remove or set to "" if you have no npm package
+      # your npm package name here, or "" if there is no npm package (safe default)
+      npm_package: ""
     secrets: inherit
 ```
 
+4. Blue **Commit changes** button at the bottom → **Commit new file**
+
 - the reference points at the public Odometer repo (`Caqtus/odometer`)
-- `npm_package` — the exact npm package name for this repo (e.g. `armazi-hud`).
-  Leave it `""`/remove it → the npm API is never called and all npm parts are
-  hidden from the output automatically.
+- `npm_package` — put the exact npm package name (e.g. `armazi-hud`) **only if**
+  this repo publishes one. Leave it `""` (the default above) if it doesn’t — the
+  npm API is never called and all npm parts are hidden automatically. A wrong or
+  missing name never breaks a run.
 - `secrets: inherit` passes `TRAFFIC_TOKEN` from your repo into the called workflow.
 
 Then open **Actions → odometer → Run workflow** for the first run (or just wait

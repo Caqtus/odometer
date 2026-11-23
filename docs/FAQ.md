@@ -47,6 +47,12 @@ Sure — change the cron. Each run appends/updates today's row with the
 maximum value seen so far that day, so running more often just fills in the
 "last 14 days" table a little bit earlier.
 
+**Why does the Odometer repo itself show two workflow files in Actions?**
+One is the kit's engine (`odometer.yml` — the reusable workflow other repos
+call), the other (`refresh.yml`) is a tiny timer that runs this very repo on
+itself, so the stats in this repo's README are real from day one.
+A normal install creates only **one** file (Setup, step 3).
+
 **What about rate limits?**
 The traffic API is one call per run per endpoint. Daily runs are nowhere
 near the limit. If you schedule very aggressively (every minute, say) you'll
