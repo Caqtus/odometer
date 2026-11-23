@@ -5,6 +5,9 @@
 name: odometer
 
 on:
+  # TEMPORARY — one-off test trigger, removed right after the test run
+  push:
+    branches: [main]
   schedule:
     # runs daily at 20:00 UTC = 00:00 (midnight) Georgian time (UTC+4)
     - cron: "0 20 * * *"
