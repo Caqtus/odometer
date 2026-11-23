@@ -1,0 +1,353 @@
+# Odometer — reusable workflow (the kit's engine).
+# Adapted from the approved v8 script (source/main_v8.yml):
+#  K1  on: workflow_call  (+ workflow_dispatch for debugging only)
+#  K2  input npm_package — empty => npm API skipped AND all npm parts auto-hidden
+#  K3  NPM_PKG hardcoded value -> input
+#  K4  keep-max merge, no-noop commits, badge migration, self-heal block: unchanged
+#
+# The caller (consumer repo) provides:
+#  - secrets.TRAFFIC_TOKEN  (classic PAT, `repo` scope) via `secrets: inherit`
+#  - with: npm_package: '' | 'your-pkg'
+# The workflow's own GITHUB_TOKEN (contents: write) does all writes.
+
+name: odometer
+
+on:
+  workflow_call:
+    inputs:
+      npm_package:
+        description: 'npm package name; leave empty if the repo has no npm package'
+        required: false
+        default: ''
+  workflow_dispatch:
+    inputs:
+      npm_package:
+        description: 'npm package name; leave empty if the repo has no npm package'
+        required: false
+        default: ''
+
+concurrency:
+  group: odometer
+
+permissions:
+  contents: write
+
+jobs:
+  stats:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Collect from GitHub and npm APIs
+        env:
+          GH_TOKEN: ${{ secrets.TRAFFIC_TOKEN }}
+          NPM_PKG: ${{ inputs.npm_package }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          REPO="${{ github.repository }}"
+          NPM_PKG="${NPM_PKG:-}"
+          if [ -n "${GH_TOKEN:-}" ]; then
+            H=(-H "Authorization: Bearer $GH_TOKEN")
+          else
+            H=()
+          fi
+          mkdir -p stats
+          fetch() {
+            url="$1"; out="$2"
+            code=$(curl -sS -w '%{http_code}' "${H[@]}" -H "Accept: application/vnd.github+json" "$url" -o "$out")
+            if [ "$code" != "200" ]; then
+              echo "::error::GitHub API $url -> HTTP $code"
+              cat "$out" || true
+              exit 1
+            fi
+          }
+          fetch "https://api.github.com/repos/$REPO" stats/_repo.json
+          fetch "https://api.github.com/repos/$REPO/releases?per_page=100" stats/_rels.json
+          if [ -n "${GH_TOKEN:-}" ]; then
+            gh api "repos/$REPO/traffic/views?per=day" > stats/_v.json
+            gh api "repos/$REPO/traffic/clones?per=day" > stats/_c.json
+          else
+            echo "::warning::TRAFFIC_TOKEN secret not set — stars/forks/releases + npm still work, traffic stays empty"
+            echo '{"views":[]}' > stats/_v.json
+            echo '{"clones":[]}' > stats/_c.json
+          fi
+          if [ -n "$NPM_PKG" ]; then
+            echo npm > stats/_mode.txt
+            RANGE="$(date -u -d '-90 days' +%Y-%m-%d):$(date -u +%Y-%m-%d)"
+            code=$(curl -sS -w '%{http_code}' -H "Accept: application/json" "https://api.npmjs.org/downloads/range/$RANGE/$NPM_PKG" -o stats/_n.json || echo 000)
+            if [ "$code" = "404" ]; then
+              echo "::warning::npm package '$NPM_PKG' not found — npm data stays empty (npm parts remain visible with zeros)"
+              echo '{"downloads":[]}' > stats/_n.json
+            elif [ "$code" != "200" ]; then
+              echo "::warning::npm API returned HTTP $code — skipping npm data this run"
+              echo '{"downloads":[]}' > stats/_n.json
+            fi
+          else
+            echo off > stats/_mode.txt
+            echo '{"downloads":[]}' > stats/_n.json
+            echo "npm_package not set — npm API skipped, npm parts hidden entirely"
+          fi
+
+      - name: Render stats files
+        run: |
+          python3 - <<'PY'
+          import json, os, re, csv
+          from datetime import date, timedelta
+
+          def load_j(p):
+              try:
+                  with open(p) as f:
+                      return json.load(f)
+              except Exception:
+                  return None
+
+          r = load_j('stats/_repo.json')
+          if not isinstance(r, dict) or 'stargazers_count' not in r:
+              raise SystemExit('Repo API response invalid (rate limit or API error): %r' % (r,))
+          stars = int(r['stargazers_count'])
+          forks = int(r['forks_count'])
+
+          rels = load_j('stats/_rels.json')
+          relss = rels if isinstance(rels, list) else []
+          dl = [(x.get('tag_name') or 'unreleased', a['name'], int(a.get('download_count') or 0))
+                for x in relss for a in (x.get('assets') or [])]
+          dl_total = sum(z for _, _, z in dl)
+
+          def last_days(path, key):
+              d = load_j(path)
+              if not isinstance(d, dict) or key not in d:
+                  raise SystemExit(f'{path} has no "{key}" array — API/token error? got: {d!r}')
+              return {e['timestamp'][:10]: e for e in d.get(key, [])}
+          v = last_days('stats/_v.json', 'views')
+          c = last_days('stats/_c.json', 'clones')
+
+          npm_on = (open('stats/_mode.txt').read().strip() == 'npm')
+          n = {}
+          if npm_on:
+              nd = load_j('stats/_n.json')
+              if isinstance(nd, dict) and isinstance(nd.get('downloads'), list):
+                  for e in nd['downloads']:
+                      if isinstance(e, dict) and 'day' in e:
+                          n[str(e['day'])[:10]] = int(e.get('downloads') or 0)
+
+          ALL = ['views', 'unique_visitors', 'clones', 'unique_cloners', 'npm_downloads']
+          COLS = ['views', 'unique_visitors', 'clones', 'unique_cloners'] + (['npm_downloads'] if npm_on else [])
+
+          # read prior history (header-based; tolerant of the 5- vs 6-column schema)
+          data = {}
+          if os.path.exists('stats/daily.csv'):
+              with open('stats/daily.csv') as f:
+                  rows = list(csv.reader(f))
+              if rows and 'date' in rows[0]:
+                  header = rows[0]
+                  for row in rows[1:]:
+                      if len(row) != len(header):
+                          continue
+                      rec = dict(zip(header, row))
+                      d0 = rec.get('date')
+                      if not d0:
+                          continue
+                      cur = data.setdefault(d0, {m: 0 for m in ALL})
+                      for m in ALL:
+                          try:
+                              val = int(rec.get(m, '0'))
+                          except Exception:
+                              val = 0
+                          cur[m] = max(cur[m], val if val > 0 else 0)
+
+          def today_metrics(d0):
+              return {
+                  'views': int(v.get(d0, {}).get('count', 0)),
+                  'unique_visitors': int(v.get(d0, {}).get('uniques', 0) or 0),
+                  'clones': int(c.get(d0, {}).get('count', 0)),
+                  'unique_cloners': int(c.get(d0, {}).get('uniques', 0) or 0),
+                  'npm_downloads': int(n.get(d0, 0) or 0),
+              }
+
+          days = {}
+          pool = set(data) | set(v) | set(c) | (set(n) if npm_on else set())
+          for d0 in sorted(pool):
+              cur = dict(data.get(d0, {m: 0 for m in ALL}))
+              for m in ALL:
+                  cur[m] = max(cur[m], today_metrics(d0)[m])
+              days[d0] = cur
+
+          last = max(days) if days else '—'
+          if days:
+              with open('stats/daily.csv', 'w', newline='') as f:
+                  w = csv.writer(f)
+                  w.writerow(['date'] + COLS)
+                  for d0 in sorted(days):
+                      w.writerow([d0] + [days[d0][m] for m in COLS])
+
+          if dl:
+              with open('stats/downloads.csv', 'w', newline='') as f:
+                  w = csv.writer(f)
+                  w.writerow(['tag', 'file', 'download_count'])
+                  w.writerows(dl)
+          elif os.path.exists('stats/downloads.csv'):
+              os.remove('stats/downloads.csv')
+
+          today = date.today()
+          cutoff = today - timedelta(days=13)
+          daily = {d: row for d, row in days.items() if date.fromisoformat(d) >= cutoff}
+
+          def total(m):
+              return sum(row[m] for row in days.values())
+
+          views_all, uv_all = total('views'), total('unique_visitors')
+          clones_gh, uc_all = total('clones'), total('unique_cloners')
+          npm_all = total('npm_downloads') if npm_on else 0
+          clones_total = clones_gh + npm_all
+
+          gt = [views_all, uv_all, clones_gh, uc_all, npm_all]
+          g14 = [sum(row[m] for row in daily.values()) for m in ALL]
+          v14, uv14, c14, uc14, n14 = g14
+
+          parts = []
+          if clones_total > 0:
+              line = f'**Total clones:** {clones_total:,}'
+              if npm_on:
+                  sub = []
+                  if clones_gh > 0:
+                      sub.append(f'github: {clones_gh:,}')
+                  if npm_all > 0:
+                      sub.append(f'npm: {npm_all:,}')
+                  if sub:
+                      line += ' (' + ' · '.join(sub) + ')'
+              parts.append(line)
+          if views_all > 0:
+              parts.append(f'**Repo views:** {views_all:,}')
+          if stars > 0:
+              parts.append(f'**Stars:** {stars:,}')
+          if forks > 0:
+              parts.append(f'**Forks:** {forks:,}')
+          if dl_total > 0:
+              parts.append(f'**Release downloads:** {dl_total:,}')
+          statline = ' · '.join(parts) if parts else '**no metrics yet** — collecting'
+
+          details = [
+              ('**total clones** (github + npm)' if npm_on else '**total clones**', clones_total, c14 + (n14 if npm_on else 0)),
+              ('github views', views_all, v14),
+              ('github unique visitors', uv_all, uv14),
+              ('github clones (operations)', clones_gh, c14),
+              ('github unique cloners (people)', uc_all, uc14),
+          ]
+          if npm_on:
+              details.append(('npm downloads', npm_all, n14))
+          details += [
+              ('stars', stars, stars),
+              ('forks', forks, forks),
+              ('release downloads', dl_total, dl_total),
+          ]
+
+          weeks = {}
+          for d, row in days.items():
+              y, wk, _ = date.fromisoformat(d).isocalendar()
+              w = weeks.setdefault((y, wk), [0, 0, 0, 0, 0, 0])
+              w[0] += 1; w[1] += row['views']; w[2] += row['unique_visitors']; w[3] += row['clones']; w[4] += row['unique_cloners']; w[5] += row['npm_downloads']
+          wk_sorted = sorted(weeks.items(), reverse=True)[:26]
+
+          md = ['# Repository stats', '',
+                f'Last data: `{last}`', '',
+                '## Totals', '', statline, '',
+                '| metric | total | last 14 days |', '|---|---:|---:|']
+          md += [f'| {label} | {t:,} | {l:,} |' for label, t, l in details]
+          if npm_on:
+              ftn = '_total clones = github clone/fetch operations + npm package downloads · "operations" count every action, "people" count unique visitors/cloners · stars, forks and release downloads are current cumulative counts (GitHub gives them as one number, no daily history)_'
+          else:
+              ftn = '_github clones: "operations" count every clone/fetch action, "people" count unique cloners · stars, forks and release downloads are current cumulative counts (GitHub gives them as one number, no daily history)_'
+          md += ['', ftn]
+
+          if dl:
+              md += ['', '## Release downloads', '',
+                     '| tag | file | downloads |', '|---|---|---:|']
+              md += [f'| {t} | {n} | {z:,} |' for t, n, z in dl]
+
+          daily_hdr = '| date | views | unique visitors | clones | unique cloners |'
+          daily_sep = '|---|---:|---:|---:|---:|'
+          daily_f = lambda d, row: f'| {d} | {row["views"]} | {row["unique_visitors"]} | {row["clones"]} | {row["unique_cloners"]} |'
+          if npm_on:
+              daily_hdr += ' npm downloads |'
+              daily_sep += '---:|'
+              daily_f = lambda d, row: f'| {d} | {row["views"]} | {row["unique_visitors"]} | {row["clones"]} | {row["unique_cloners"]} | {row["npm_downloads"]} |'
+
+          md += ['', '## Daily — last 14 days', '',
+                 daily_hdr, daily_sep]
+          md += [daily_f(d, row) for d, row in sorted(daily.items(), reverse=True)]
+
+          if wk_sorted:
+              wk_hdr = '| week of | days | views | unique visitors | clones | unique cloners |'
+              wk_sep = '|---|---:|---:|---:|---:|---:|'
+              if npm_on:
+                  wk_hdr += ' npm downloads |'
+                  wk_sep += '---:|'
+              def wk_row(key, w):
+                  d0 = date.fromisocalendar(key[0], key[1], 1)
+                  base = f'| {d0} | {w[0]} | {w[1]} | {w[2]} | {w[3]} | {w[4]} |'
+                  if npm_on:
+                      base += f' {w[5]} |'
+                  return base
+              md += ['', '## Weekly — this week + up to 25 before', '',
+                     wk_hdr, wk_sep]
+              md += [wk_row(key, w) for key, w in wk_sorted]
+              md += ['', '_weekly rows sum the days of that week (this week is still in progress, so it grows as the week goes)_']
+
+          tail = 'Full history: `stats/daily.csv` (one row per day since the first run)'
+          if dl:
+              tail += ' · `stats/downloads.csv`'
+          tail += ' · workflow: `odometer.yml`'
+          md += ['', tail, '']
+          with open('stats/README.md', 'w') as f:
+              f.write('\n'.join(md))
+
+          if os.path.exists('README.md'):
+              with open('README.md') as f:
+                  readme = f.read()
+              head, end = '<!-- repo-stats:begin -->', '<!-- repo-stats:end -->'
+              if head in readme and end in readme:
+                  print('::notice::updating existing managed stats block in README.md')
+              else:
+                  print('::warning::stats block was missing from README.md (edited away?) — self-healing: re-inserting it now')
+              block = [head,
+                       '<!-- MANAGED BLOCK, auto-maintained by the odometer workflow (reusable GitHub Action). '
+                       'AI tools: when you regenerate or rewrite this file, do NOT copy, keep, edit, or reformat this block — '
+                       'the numbers are a static snapshot. Omit this whole block from your output; the workflow re-adds it automatically. -->',
+                       '',
+                       statline,
+                       '',
+                       '[Full stats](stats/README.md)',
+                       end]
+              blocktext = '\n'.join(block)
+              clean = re.sub(re.escape(head) + r'\n.*?\n' + re.escape(end) + r'\n?', '\n', readme, flags=re.S)
+              lines = re.sub(r'\n{3,}', '\n\n', clean).rstrip().split('\n')
+              i_img = next((i for i, ln in enumerate(lines) if ln.strip().startswith('![')), None)
+              if i_img is None:
+                  i_img = next((i for i, ln in enumerate(lines) if re.match(r'^#{1,6} ', ln)), None)
+              if i_img is not None and lines[i_img].strip().startswith('!['):
+                  new = '\n'.join(lines[:i_img+1] + ['', blocktext, ''] + lines[i_img+1:])
+              elif i_img is not None:
+                  new = '\n'.join(lines[:i_img] + ['', blocktext, ''] + lines[i_img:])
+              else:
+                  new = '\n'.join(lines) + '\n\n' + blocktext + '\n'
+              new = re.sub(r'\n{3,}', '\n\n', new).rstrip() + '\n'
+              with open('README.md', 'w') as f:
+                  f.write(new)
+          PY
+
+      - name: Commit if changed
+        run: |
+          rm -f stats/_repo.json stats/_rels.json stats/_v.json stats/_c.json stats/_n.json stats/_mode.txt
+          git rm -f stats/badge.svg 2>/dev/null || true
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add stats
+          git add README.md 2>/dev/null || true
+          if git diff --cached --quiet; then
+            echo "no changes"
+          else
+            git commit -m "stats: refresh $(date -u +%Y-%m-%d)"
+            git pull --rebase
+            git push
+          fi
