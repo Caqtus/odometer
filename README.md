@@ -14,6 +14,8 @@ One clean stats line in your README that updates by itself — just like the blo
 
 **Clones (GitHub + npm) · views · stars · forks · release downloads**, as cumulative totals that never go down. Each day the workflow appends one row to a CSV in your repo and rewrites the line from real numbers, so it can't lie. Everything it produces is plain text you own — leave GitHub and the history stays yours.
 
+ეგაა. ეს სტრინგი სამუშაო სტრინგია და მალე წაიშლება
+
 ## Install
 
 ### 1 · Token
