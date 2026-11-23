@@ -10,6 +10,11 @@ on:
     - cron: "0 20 * * *"
   workflow_dispatch: {}
 
+# The engine (odometer.yml) requests `contents: write` so its run token can
+# commit the stats back; a reusable-workflow caller must allow at least that.
+permissions:
+  contents: write
+
 jobs:
   refresh:
     uses: Caqtus/odometer/.github/workflows/odometer.yml@main
