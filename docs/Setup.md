@@ -33,7 +33,7 @@ GitHub encrypts it at rest; no one in Settings can read the value back.
 
 ## 3 · Workflow file
 
-Create `.github/workflows/odometer.yml` (web UI: **`+`** → **Create new file**, type the name exactly):
+Create the file **`.github/workflows/refresh.yml`** (web UI: above the file list, **`+`** → **Create new file**, type the full path `.github/workflows/refresh.yml` in the name box, and paste this content — name it `refresh.yml`, not `odometer.yml`):
 
 ```yaml
 name: odometer

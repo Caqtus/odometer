@@ -22,7 +22,7 @@ Change the cron. Each run merges the maximum-of-day into today's row, so extra r
 Nothing breaks — owner/repo are recomputed from `github.repository` on every run and the history continues.
 
 **Why does the Odometer repo show two workflow files in Actions?**
-`odometer.yml` is the engine other repos call; `refresh.yml` is the small timer that runs this very repo on itself so its stats are real from day one. A normal install creates exactly one file.
+`odometer.yml` is the engine other repos call; `refresh.yml` is the small timer that runs this very repo on itself so its stats are real from day one. A normal install creates exactly one file of its own: `refresh.yml`.
 
 **Rate limits?**
 Four reads per run; daily is nowhere near any limit. A very aggressive cron could hit read caps — that run fails loudly, the next one is fine.

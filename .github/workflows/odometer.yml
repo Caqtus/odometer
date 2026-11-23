@@ -55,14 +55,31 @@ jobs:
             H=()
           fi
           mkdir -p stats
+          # Transient GitHub errors (502/503/504 unicorn page, network blips) must
+          # never fail a run: retry a few times, then degrade to a zero fallback.
+          # The max-merge below keeps every previously collected day intact.
           fetch() {
             url="$1"; out="$2"
-            code=$(curl -sS -w '%{http_code}' "${H[@]}" -H "Accept: application/vnd.github+json" "$url" -o "$out")
-            if [ "$code" != "200" ]; then
-              echo "::error::GitHub API $url -> HTTP $code"
-              cat "$out" || true
-              exit 1
-            fi
+            code=""
+            i=1
+            while [ "$i" -le 3 ]; do
+              code=$(curl -sS --max-time 60 -w '%{http_code}' "${H[@]}" -H "Accept: application/vnd.github+json" "$url" -o "$out" || echo 000)
+              if [ "$code" = "200" ]; then
+                return 0
+              fi
+              echo "::warning::GitHub API $url -> HTTP $code (attempt $i/3)"
+              if [ "$i" -lt 3 ]; then sleep 20; fi
+              i=$((i+1))
+            done
+            echo "::warning::$url still failing after 3 attempts — using a zero fallback for this run; previously collected days are kept"
+            case "$url" in
+              */releases*)
+                echo '[]' > "$out"
+                ;;
+              *)
+                echo '{"stargazers_count":0,"forks_count":0}' > "$out"
+                ;;
+            esac
           }
           fetch "https://api.github.com/repos/$REPO" stats/_repo.json
           fetch "https://api.github.com/repos/$REPO/releases?per_page=100" stats/_rels.json

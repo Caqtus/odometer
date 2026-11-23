@@ -30,7 +30,7 @@ Your repo → **Settings** → **Secrets and variables** → **Actions** → **N
 
 ### 3 · Workflow file
 
-Create the file `.github/workflows/odometer.yml` in your repo — web UI: above the file list click **`+`** → **Create new file**, type the name exactly, the folders are created on commit — with this content:
+Create one new workflow file, named **`refresh.yml`**, at the path `.github/workflows/refresh.yml` in your repo — web UI: above the file list click **`+`** → **Create new file**, and type the full path `.github/workflows/refresh.yml` in the name box (the folders are created on commit). After you commit, the workflow shows up in the **Actions** tab — that is where you run it and where its history lives:
 
 ```yaml
 name: odometer
@@ -75,6 +75,6 @@ Full detail: the `docs/` folder — Home, Setup, What-you-get, FAQ.
 
 **What if the token is revoked or expires?** The run stays green: stars/forks/releases keep updating, a warning is logged, traffic stays empty until you paste a fresh token under the same secret name. No code changes.
 
-**Why does this repo show two workflow files?** `odometer.yml` is the engine every install calls; `refresh.yml` is the small timer that runs this very repo on itself, so the stats above are real from day one. Your install has exactly one file.
+**Why does this repo show two workflow files?** `odometer.yml` is the engine — the reusable workflow your `refresh.yml` calls; `refresh.yml` is this repo's own small timer, running the engine on this very repo so the stats above are real from day one. Your install adds exactly one file of its own: `refresh.yml`.
 
-**Uninstall?** Delete `odometer.yml`, the `stats/` folder, the block between the `repo-stats:begin` / `repo-stats:end` markers, and the `TRAFFIC_TOKEN` secret. Nothing else.
+**Uninstall?** Delete `refresh.yml` (the workflow file you created in step 3), the `stats/` folder, the stats block in your **README.md** between the `repo-stats:begin` / `repo-stats:end` markers, and the `TRAFFIC_TOKEN` secret. Nothing else.
