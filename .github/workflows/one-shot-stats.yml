@@ -1,0 +1,22 @@
+# Dogfood wrapper — this repo runs the odometer kit on itself, from day 0.
+# (Reusable workflows can be called from the same repo: GitHub docs "Access to
+# reusable workflows" — the caller passes its secrets with `secrets: inherit`.)
+
+name: odometer-one-shot
+
+on:
+  push:
+    branches: [main]
+
+# The engine (odometer.yml) requests `contents: write` so its run token can
+# commit the stats back; a reusable-workflow caller must allow at least that.
+permissions:
+  contents: write
+
+jobs:
+  refresh:
+    uses: Caqtus/odometer/.github/workflows/odometer.yml@main
+    with:
+      npm_package: ""      # this repo has no npm package => npm parts hidden entirely
+    secrets: inherit
+
