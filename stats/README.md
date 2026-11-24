@@ -1,18 +1,18 @@
 # Repository stats
 
-Last data: `—`
+Last data: `2026-11-23`
 
 ## Totals
 
-**no metrics yet** — collecting
+**Total clones:** 132 · **Repo views:** 72
 
 | metric | total | last 14 days |
 |---|---:|---:|
-| **total clones** | 0 | 0 |
-| github views | 0 | 0 |
-| github unique visitors | 0 | 0 |
-| github clones (operations) | 0 | 0 |
-| github unique cloners (people) | 0 | 0 |
+| **total clones** | 132 | 132 |
+| github views | 72 | 72 |
+| github unique visitors | 1 | 1 |
+| github clones (operations) | 132 | 132 |
+| github unique cloners (people) | 49 | 49 |
 | stars | 0 | 0 |
 | forks | 0 | 0 |
 | release downloads | 0 | 0 |
@@ -23,5 +23,28 @@ _github clones: "operations" count every clone/fetch action, "people" count uniq
 
 | date | views | unique visitors | clones | unique cloners |
 |---|---:|---:|---:|---:|
+| 2026-11-23 | 72 | 1 | 132 | 49 |
+| 2026-11-22 | 0 | 0 | 0 | 0 |
+| 2026-11-21 | 0 | 0 | 0 | 0 |
+| 2026-11-20 | 0 | 0 | 0 | 0 |
+| 2026-11-19 | 0 | 0 | 0 | 0 |
+| 2026-11-18 | 0 | 0 | 0 | 0 |
+| 2026-11-17 | 0 | 0 | 0 | 0 |
+| 2026-11-16 | 0 | 0 | 0 | 0 |
+| 2026-11-15 | 0 | 0 | 0 | 0 |
+| 2026-11-14 | 0 | 0 | 0 | 0 |
+| 2026-11-13 | 0 | 0 | 0 | 0 |
+| 2026-11-12 | 0 | 0 | 0 | 0 |
+| 2026-11-11 | 0 | 0 | 0 | 0 |
+
+## Weekly — this week + up to 25 before
+
+| week of | days | views | unique visitors | clones | unique cloners |
+|---|---:|---:|---:|---:|---:|
+| 2026-11-23 | 1 | 72 | 1 | 132 | 49 |
+| 2026-11-16 | 7 | 0 | 0 | 0 | 0 |
+| 2026-11-09 | 6 | 0 | 0 | 0 | 0 |
+
+_weekly rows sum the days of that week (this week is still in progress, so it grows as the week goes)_
 
 Full history: `stats/daily.csv` (one row per day since the first run) · workflow: `odometer.yml`
