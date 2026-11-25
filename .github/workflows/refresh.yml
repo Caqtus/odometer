@@ -6,8 +6,10 @@ name: odometer
 
 on:
   schedule:
-    # runs daily at 20:00 UTC = 00:00 (midnight) Georgian time (UTC+4)
-    - cron: "0 20 * * *"
+    # runs twice daily: 12:00+20:00 UTC = 16:00+24:00 Georgian time (UTC+4)
+    # (GitHub's traffic data publishes ~15-18h after a day ends, so two runs/day
+    #  make sure every day's numbers settle by the next evening)
+    - cron: "0 12,20 * * *"
   workflow_dispatch: {}
 
 # The engine (odometer.yml) requests `contents: write` so its run token can
