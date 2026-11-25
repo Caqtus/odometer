@@ -35,7 +35,6 @@ _github clones: "operations" count every clone/fetch action, "people" count uniq
 | 2026-11-14 | 0 | 0 | 0 | 0 |
 | 2026-11-13 | 0 | 0 | 0 | 0 |
 | 2026-11-12 | 0 | 0 | 0 | 0 |
-| 2026-11-11 | 0 | 0 | 0 | 0 |
 
 ## Weekly — this week + up to 25 before
 
